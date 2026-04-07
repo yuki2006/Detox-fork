@@ -9,8 +9,10 @@ import junit.framework.AssertionFailedError;
 
 import org.hamcrest.Matcher;
 
+import androidx.test.espresso.NoMatchingViewException;
 import androidx.test.espresso.ViewAction;
 import androidx.test.espresso.ViewInteraction;
+import androidx.test.espresso.matcher.RootMatchers;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
@@ -104,6 +106,24 @@ public class DetoxAssertion {
                     break;
                 }
             }
+        }
+    }
+
+    /**
+     * Creates a ViewInteraction for the given matcher, trying the dialog root if not found in the default root.
+     */
+    public static ViewInteraction onViewWithDialogFallback(Matcher<View> matcher) {
+        try {
+            ViewInteraction vi = onView(matcher);
+            // Trigger a check to verify the view exists in the default root
+            vi.check(matches(isDisplayed()));
+            return vi;
+        } catch (NoMatchingViewException e) {
+            // Fallback to dialog root
+            return onView(matcher).inRoot(RootMatchers.isDialog());
+        } catch (AssertionFailedError e) {
+            // View exists but is not displayed — still in default root
+            return onView(matcher);
         }
     }
 }
