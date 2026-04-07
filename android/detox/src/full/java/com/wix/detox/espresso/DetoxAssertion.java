@@ -34,9 +34,14 @@ public class DetoxAssertion {
 
     /**
      * Asserts the given matcher for the provided view interaction.
+     * Falls back to dialog root if the assertion fails in the default root.
      */
     public static ViewInteraction assertMatcher(ViewInteraction viewInteraction, Matcher<View> viewMatcher) {
-        return viewInteraction.check(matches(viewMatcher));
+        try {
+            return viewInteraction.check(matches(viewMatcher));
+        } catch (NoMatchingViewException e) {
+            return viewInteraction.inRoot(RootMatchers.isDialog()).check(matches(viewMatcher));
+        }
     }
 
     /**
@@ -62,6 +67,7 @@ public class DetoxAssertion {
 
     /**
      * Waits until the provided matcher matches the view interaction or a timeout occurs.
+     * Tries both the default root and dialog root on each iteration.
      */
     public static void waitForAssertMatcher(final ViewInteraction viewInteraction, final Matcher<View> viewMatcher, double timeoutSeconds) {
         final long startTime = System.nanoTime();
@@ -79,7 +85,21 @@ public class DetoxAssertion {
                 viewInteraction.check(matches(viewMatcher));
                 break;
             } catch (AssertionFailedError err) {
-                UiAutomatorHelper.espressoSync(20);
+                // Try dialog root as fallback
+                try {
+                    viewInteraction.inRoot(RootMatchers.isDialog()).check(matches(viewMatcher));
+                    break;
+                } catch (Exception dialogErr) {
+                    UiAutomatorHelper.espressoSync(20);
+                }
+            } catch (NoMatchingViewException e) {
+                // Try dialog root as fallback
+                try {
+                    viewInteraction.inRoot(RootMatchers.isDialog()).check(matches(viewMatcher));
+                    break;
+                } catch (Exception dialogErr) {
+                    UiAutomatorHelper.espressoSync(20);
+                }
             }
         }
     }
@@ -106,24 +126,6 @@ public class DetoxAssertion {
                     break;
                 }
             }
-        }
-    }
-
-    /**
-     * Creates a ViewInteraction for the given matcher, trying the dialog root if not found in the default root.
-     */
-    public static ViewInteraction onViewWithDialogFallback(Matcher<View> matcher) {
-        try {
-            ViewInteraction vi = onView(matcher);
-            // Trigger a check to verify the view exists in the default root
-            vi.check(matches(isDisplayed()));
-            return vi;
-        } catch (NoMatchingViewException e) {
-            // Fallback to dialog root
-            return onView(matcher).inRoot(RootMatchers.isDialog());
-        } catch (AssertionFailedError e) {
-            // View exists but is not displayed — still in default root
-            return onView(matcher);
         }
     }
 }
