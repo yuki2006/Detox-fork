@@ -1,0 +1,76 @@
+name: Check Upstream Detox Update
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # 毎週月曜 9:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: detox-only
+
+      - name: Get fork version
+        id: fork
+        run: |
+          FORK_VERSION=$(jq -r '.version' package.json)
+          echo "version=$FORK_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest upstream version
+        id: upstream
+        run: |
+          LATEST_VERSION=$(npm view detox version)
+          echo "version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compare and create issue
+        if: steps.fork.outputs.version != steps.upstream.outputs.version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const forkVersion = '${{ steps.fork.outputs.version }}';
+            const upstreamVersion = '${{ steps.upstream.outputs.version }}';
+            const title = `本家 Detox が更新されました: ${forkVersion} → ${upstreamVersion}`;
+
+            // 同じタイトルの open issue があればスキップ
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+            if (existing.data.some(i => i.title === title)) {
+              console.log('Issue already exists, skipping');
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                '## 本家 Detox の更新検知',
+                '',
+                `| | バージョン |`,
+                `|---|---|`,
+                `| Fork (detox-only) | \`${forkVersion}\` |`,
+                `| 本家 (wix/Detox) | \`${upstreamVersion}\` |`,
+                '',
+                '### 対応手順',
+                '',
+                '1. 本家の最新を merge:',
+                '   ```bash',
+                '   git remote add upstream https://github.com/wix/Detox.git',
+                '   git fetch upstream',
+                '   git merge upstream/master',
+                '   ```',
+                '2. `inRoot(isDialog())` フォールバックの修正が維持されているか確認',
+                '3. `detox-only` ブランチを再生成:',
+                '   ```bash',
+                '   git subtree split --prefix=detox -b detox-only',
+                '   git push origin detox-only --force',
+                '   ```',
+                '4. 本家で Modal 対応（[wix/Detox#4928](https://github.com/wix/Detox/issues/4928)）がマージされていれば **fork 不要**',
+              ].join('\n'),
+            });
