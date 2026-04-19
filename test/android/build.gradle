@@ -1,0 +1,56 @@
+buildscript {
+    apply from: '../../android/rninfo.gradle'
+
+    ext {
+        isOfficialDetoxApp = true
+        if (ext.rnInfo.isRN80OrHigher) {
+            kotlinVersion = '2.1.20'
+        } else {
+            kotlinVersion = '2.0.20'
+        }
+        buildToolsVersion = '36.0.0'
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        minSdkVersion = 26
+        appCompatVersion = '1.7.1'
+    }
+    ext.detoxKotlinVersion = ext.kotlinVersion
+
+    repositories {
+        google()
+        mavenCentral()
+        mavenLocal()
+    }
+
+    dependencies {
+        classpath "com.android.tools.build:gradle"
+        classpath 'com.facebook.react:react-native-gradle-plugin'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+
+        // Needed by Spek (https://spekframework.org/setup-android)
+        // Here in order to enable unit-tests run from Android Studio when working on the test app.
+        classpath 'de.mannodermaus.gradle.plugins:android-junit5:1.7.1.1'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        mavenLocal()
+    }
+}
+
+subprojects {
+    afterEvaluate { p ->
+        if (p.hasProperty('android')) {
+            android {
+                buildToolsVersion rootProject.ext.buildToolsVersion
+            }
+        }
+    }
+}
+
+if (ext.rnInfo.isRN73OrHigher) {
+    apply plugin: "com.facebook.react.rootproject"
+}
